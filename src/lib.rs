@@ -1,3 +1,12 @@
+mod base_node;
+mod fract_node;
+mod render_node;
+mod render_pipeline;
+mod texture;
+
+use fract_node::FractNode;
+use render_node::RenderGraph;
+
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -58,6 +67,7 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     window: Window,
+    render_graph: RenderGraph,
 }
 
 impl State {
@@ -117,6 +127,8 @@ impl State {
         };
         surface.configure(&device, &config);
 
+        let render_graph = RenderGraph::new(&device, &config);
+
         Self {
             window,
             surface,
@@ -124,6 +136,7 @@ impl State {
             queue,
             config,
             size,
+            render_graph,
         }
     }
 
@@ -141,7 +154,27 @@ impl State {
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state,
+                        virtual_keycode: Some(VirtualKeyCode::Space),
+                        ..
+                    },
+                ..
+            } => {
+                if *state == ElementState::Released {
+                    self.render_graph.add_node(
+                        &self.device,
+                        Box::new(FractNode::new(&self.device, &self.config)),
+                        true,
+                    );
+                }
+                true
+            }
+            _ => false,
+        }
     }
 
     fn update(&mut self) {}
@@ -152,36 +185,8 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        self.render_graph.process(&self.device, &view, &self.queue);
 
-        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        });
-
-        drop(render_pass);
-
-        // submit will accept anything that implements IntoIter
-        self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         Ok(())
