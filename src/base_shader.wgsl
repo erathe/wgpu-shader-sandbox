@@ -17,12 +17,18 @@ fn vs_main(
     out.clip_position = vec4<f32>(out.uv * 2.0 - 1.0, 0.0, 1.0);
     // We need to invert the y coordinate so the image
     // is not upside down
-    out.uv.y = 1.0 - out.uv.y;
+    // out.uv.y = 1.0 - out.uv.y;
+    out.uv = (out.uv - 0.5) * 2.0;
+    out.uv.x *= 1600.0/1200.0;
     return out;
 }
 
 @fragment
 fn fs_main(vs: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4(vs.uv, 0.0, 1.0);
+
+    var d = length(vs.uv) - 0.5;
+    d = abs(d);
+    d = smoothstep(0.0, 0.1, d);
+    return vec4(d, d, d, 1.0);
 }
 

@@ -58,9 +58,11 @@ impl RenderGraph {
         let len = self.nodes.len();
         for (idx, node) in self.nodes.iter().enumerate() {
             let out = {
+                // render to screen
                 if idx == len - 1 {
                     output
                 } else {
+                    // Render to texture in render graph
                     &self.textures[idx % 2].view
                 }
             };
