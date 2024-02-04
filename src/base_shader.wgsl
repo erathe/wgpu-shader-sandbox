@@ -24,6 +24,10 @@ fn vs_main(
     return out;
 }
 
+fn mapRange(x: f32) -> f32 {
+    return (x + 1.0) / 2.0;
+}
+
 struct System {
     screen: vec2<f32>,
     mouse: vec2<f32>,
@@ -35,14 +39,14 @@ var<uniform> system: System;
 @fragment
 fn fs_main(vs: VertexOutput) -> @location(0) vec4<f32> {
 
-    var col: vec3<f32> = vec3(1.0, 0.0, 0.0);
+    var col: vec3<f32> = vec3(1.0, mapRange(cos(system.mouse.x * 0.01)), mapRange(cos(system.mouse.y * 0.01)));
 
     var uv = vs.uv;
     // fix aspect ratio
     uv.x *= system.screen.x / system.screen.y;
 
-    var d = length(uv) - 0.5 + (system.mouse.x / system.screen.x);
-    d = sin(d * 8. + system.time) / 8.;
+    var d = length(uv) - 0.5;
+    d = sin(d * 4. + system.time) / 4.;
     d = abs(d);
 
     // d = smoothstep(0.0, 0.1, d);
