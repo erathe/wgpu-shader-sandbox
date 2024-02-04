@@ -4,6 +4,7 @@ struct VertexOutput {
 };
 
 
+
 @vertex
 fn vs_main(
 	@builtin(vertex_index) vi: u32
@@ -19,16 +20,36 @@ fn vs_main(
     // is not upside down
     // out.uv.y = 1.0 - out.uv.y;
     out.uv = (out.uv - 0.5) * 2.0;
-    out.uv.x *= 1600.0/1200.0;
+    // out.uv.x *= 1600.0/1200.0;
     return out;
 }
+
+struct System {
+    screen: vec2<f32>,
+    mouse: vec2<f32>,
+    time: f32,
+}
+@group(0) @binding(0)
+var<uniform> system: System;
 
 @fragment
 fn fs_main(vs: VertexOutput) -> @location(0) vec4<f32> {
 
-    var d = length(vs.uv) - 0.5;
+    var col: vec3<f32> = vec3(1.0, 0.0, 0.0);
+
+    var uv = vs.uv;
+    // fix aspect ratio
+    uv.x *= system.screen.x / system.screen.y;
+
+    var d = length(uv) - 0.5 + (system.mouse.x / system.screen.x);
+    d = sin(d * 8. + system.time) / 8.;
     d = abs(d);
-    d = smoothstep(0.0, 0.1, d);
-    return vec4(d, d, d, 1.0);
+
+    // d = smoothstep(0.0, 0.1, d);
+    d = 0.02 / d;
+
+    col *= d;
+    
+    return vec4(col, 1.0);
 }
 

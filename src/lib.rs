@@ -5,9 +5,12 @@ mod render_pipeline;
 mod texture;
 
 use fract_node::FractNode;
+use instant::Instant;
 use render_node::RenderGraph;
+use wgpu::util::DeviceExt;
 
 use winit::{
+    dpi::PhysicalPosition,
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
@@ -60,6 +63,15 @@ pub async fn run() {
     })
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct SystemUniform {
+    screen: [f32; 2],
+    mouse: [f32; 2],
+    time: f32,
+    _padding: [f32; 3],
+}
+
 struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -68,6 +80,9 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     window: Window,
     render_graph: RenderGraph,
+    system_uniform: SystemUniform,
+    system_uniform_buffer: wgpu::Buffer,
+    started_time: Instant,
 }
 
 impl State {
@@ -127,7 +142,22 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let render_graph = RenderGraph::new(&device, &config);
+        let started_time = Instant::now();
+
+        let system_uniform = SystemUniform {
+            screen: [size.width as f32, size.height as f32],
+            mouse: [0.0, 0.0],
+            time: 0.0,
+            _padding: [0., 0., 0.],
+        };
+
+        let system_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("system::uniform"),
+            contents: bytemuck::cast_slice(&[system_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let render_graph = RenderGraph::new(&device, &config, &system_uniform_buffer);
 
         Self {
             window,
@@ -137,6 +167,9 @@ impl State {
             config,
             size,
             render_graph,
+            system_uniform,
+            system_uniform_buffer,
+            started_time,
         }
     }
 
@@ -151,6 +184,13 @@ impl State {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
         }
+        self.system_uniform.screen[0] = new_size.width as f32;
+        self.system_uniform.screen[1] = new_size.height as f32;
+        self.queue.write_buffer(
+            &self.system_uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[self.system_uniform]),
+        );
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
@@ -173,11 +213,31 @@ impl State {
                 }
                 true
             }
+            WindowEvent::CursorMoved {
+                position: PhysicalPosition { x, y },
+                ..
+            } => {
+                self.system_uniform.mouse[0] = *x as f32;
+                self.system_uniform.mouse[1] = *y as f32;
+                self.queue.write_buffer(
+                    &self.system_uniform_buffer,
+                    0,
+                    bytemuck::cast_slice(&[self.system_uniform]),
+                );
+                true
+            }
             _ => false,
         }
     }
 
-    fn update(&mut self) {}
+    fn update(&mut self) {
+        self.system_uniform.time = self.started_time.elapsed().as_secs_f32();
+        self.queue.write_buffer(
+            &self.system_uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[self.system_uniform]),
+        );
+    }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;

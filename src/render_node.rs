@@ -11,8 +11,12 @@ pub struct RenderGraph {
 }
 
 impl RenderGraph {
-    pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
-        let base_node = BaseNode::new(&device, &config);
+    pub fn new(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+        system_buffer: &wgpu::Buffer,
+    ) -> Self {
+        let base_node = BaseNode::new(&device, &config, &system_buffer);
         let mut graph = Self {
             textures: [
                 texture::Texture::create_2d_texture(
